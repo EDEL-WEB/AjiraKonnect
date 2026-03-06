@@ -7,6 +7,7 @@ class OfflineSyncService:
     
     @staticmethod
     def queue_offline_action(user_id, device_id, action_type, payload, client_timestamp):
+        # Queue offline action
         sync_item = SyncQueue(
             user_id=user_id,
             device_id=device_id,
@@ -16,6 +17,22 @@ class OfflineSyncService:
         )
         db.session.add(sync_item)
         db.session.commit()
+        
+        # If action is job update, create update record
+        if action_type in ['update_progress', 'add_note', 'upload_photo']:
+            from app.models.job_update import JobUpdate
+            update = JobUpdate(
+                job_id=payload.get('job_id'),
+                user_id=user_id,
+                update_type=action_type.replace('update_', '').replace('add_', '').replace('upload_', ''),
+                progress_percentage=payload.get('progress_percentage'),
+                note=payload.get('note'),
+                photo_urls=payload.get('photo_urls'),
+                created_offline=True
+            )
+            db.session.add(update)
+            db.session.commit()
+        
         return sync_item.id
     
     @staticmethod
