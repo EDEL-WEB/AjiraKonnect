@@ -15,13 +15,13 @@ with app.app_context():
             email='kaziconnect@26.com',
             password='Admin@2024!',
             full_name='KaziConnect Admin',
-            phone='+254700000000'
+            phone=''
         )
-        print(f"✅ Admin created successfully!")
+        print(f" Admin created successfully!")
         print(f"Email: {admin.email}")
         print(f"Role: {admin.role}")
         print(f"ID: {admin.id}")
     except ValueError as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
     except Exception as e:
-        print(f"❌ Unexpected error: {e}")
+        print(f" Unexpected error: {e}")

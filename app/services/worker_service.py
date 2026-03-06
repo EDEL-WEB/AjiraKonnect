@@ -15,10 +15,11 @@ class WorkerService:
         db.session.add(worker)
         db.session.flush()
         
-        for skill in skills:
-            worker_skill = WorkerSkill(worker_id=worker.id, category_id=skill['category_id'], 
-                                      experience_years=skill.get('experience_years', 0))
-            db.session.add(worker_skill)
+        # Skip skills for now - can be added later
+        # for skill in skills:
+        #     worker_skill = WorkerSkill(worker_id=worker.id, category_id=skill['category_id'], 
+        #                               experience_years=skill.get('experience_years', 0))
+        #     db.session.add(worker_skill)
         
         # Auto-create verification record
         from app.models.verification import WorkerVerification

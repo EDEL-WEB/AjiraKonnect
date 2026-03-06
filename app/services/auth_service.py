@@ -170,6 +170,7 @@ class AuthService:
         user.phone_verified = True
         
         db.session.add(user)
+        db.session.flush()
         
         wallet = Wallet(user_id=user.id)
         db.session.add(wallet)

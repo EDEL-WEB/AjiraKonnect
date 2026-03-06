@@ -25,7 +25,10 @@ def create_profile():
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': 'Failed to create profile'}), 500
+        print(f"Worker profile creation error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to create profile: {str(e)}'}), 500
 
 @bp.route('/search', methods=['GET'])
 def search_workers():
