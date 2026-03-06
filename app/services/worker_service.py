@@ -20,6 +20,11 @@ class WorkerService:
                                       experience_years=skill.get('experience_years', 0))
             db.session.add(worker_skill)
         
+        # Auto-create verification record
+        from app.models.verification import WorkerVerification
+        verification = WorkerVerification(worker_id=worker.id)
+        db.session.add(verification)
+        
         db.session.commit()
         return worker
     
