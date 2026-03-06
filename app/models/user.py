@@ -11,6 +11,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     full_name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), nullable=False)
+    phone_verified = db.Column(db.Boolean, default=False)
     role = db.Column(db.Enum('customer', 'worker', 'admin', name='user_roles'), nullable=False, default='customer')
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
