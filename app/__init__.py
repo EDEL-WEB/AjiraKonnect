@@ -3,11 +3,13 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from config import Config
 
 db = SQLAlchemy()
 jwt = JWTManager()
 migrate = Migrate()
+socketio = SocketIO()
 
 def create_app():
     app = Flask(__name__)
@@ -17,8 +19,9 @@ def create_app():
     jwt.init_app(app)
     migrate.init_app(app, db)
     CORS(app)
+    socketio.init_app(app, cors_allowed_origins='*')
     
-    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates
+    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates, tracking
     
     app.register_blueprint(auth.bp)
     app.register_blueprint(users.bp)
@@ -33,5 +36,6 @@ def create_app():
     app.register_blueprint(verification.bp)
     app.register_blueprint(notifications.bp)
     app.register_blueprint(job_updates.bp)
+    app.register_blueprint(tracking.bp)
     
     return app

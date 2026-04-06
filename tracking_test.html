@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>KaziConnect Live Tracking</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; }
+
+        .header {
+            background: #1a56db;
+            color: white;
+            padding: 14px 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .container { display: flex; height: calc(100vh - 52px); }
+
+        /* Map */
+        #map { flex: 1; }
+
+        /* Side Panel */
+        .panel {
+            width: 340px;
+            background: white;
+            overflow-y: auto;
+            border-left: 1px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .section {
+            padding: 16px;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .section h3 {
+            font-size: 13px;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        label { font-size: 12px; color: #6b7280; margin-bottom: 3px; display: block; }
+
+        .btn {
+            padding: 8px 14px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            margin-right: 6px;
+            margin-bottom: 6px;
+        }
+        .btn-blue { background: #1a56db; color: white; }
+        .btn-green { background: #059669; color: white; }
+        .btn-red { background: #dc2626; color: white; }
+        .btn-gray { background: #6b7280; color: white; }
+        .btn:hover { opacity: 0.9; }
+
+        /* Status */
+        .status-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status-connected { background: #d1fae5; color: #065f46; }
+        .status-disconnected { background: #fee2e2; color: #991b1b; }
+
+        /* Info cards */
+        .info-card {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 8px;
+        }
+        .info-card .value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a56db;
+        }
+        .info-card .label { font-size: 12px; color: #6b7280; }
+
+        /* Arrival alert */
+        .arrival-alert {
+            background: #d1fae5;
+            border: 2px solid #059669;
+            border-radius: 8px;
+            padding: 14px;
+            text-align: center;
+            display: none;
+        }
+        .arrival-alert.show { display: block; }
+        .arrival-alert .icon { font-size: 32px; }
+        .arrival-alert .title { font-size: 16px; font-weight: bold; color: #065f46; }
+        .arrival-alert .sub { font-size: 13px; color: #047857; }
+
+        /* Log */
+        #log {
+            background: #111827;
+            color: #10b981;
+            padding: 12px;
+            font-family: monospace;
+            font-size: 12px;
+            height: 160px;
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+
+        /* Route line color */
+        .distance-far { color: #dc2626; }
+        .distance-near { color: #f59e0b; }
+        .distance-arrived { color: #059669; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    🗺️ KaziConnect Live Tracking
+    <span id="connectionStatus" class="status-badge status-disconnected">Disconnected</span>
+</div>
+
+<div class="container">
+    <!-- Map -->
+    <div id="map"></div>
+
+    <!-- Side Panel -->
+    <div class="panel">
+
+        <!-- Arrival Alert -->
+        <div class="section">
+            <div class="arrival-alert" id="arrivalAlert">
+                <div class="icon">🎉</div>
+                <div class="title">Worker Has Arrived!</div>
+                <div class="sub" id="arrivalDistance"></div>
+            </div>
+        </div>
+
+        <!-- Live Stats -->
+        <div class="section">
+            <h3>Live Stats</h3>
+            <div style="display:flex; gap:8px;">
+                <div class="info-card" style="flex:1">
+                    <div class="value" id="distanceValue">--</div>
+                    <div class="label">Distance (m)</div>
+                </div>
+                <div class="info-card" style="flex:1">
+                    <div class="value" id="updatesCount">0</div>
+                    <div class="label">Updates</div>
+                </div>
+            </div>
+            <div class="info-card">
+                <div class="label">Worker Coordinates</div>
+                <div id="workerCoords" style="font-size:13px; color:#374151; margin-top:4px;">Waiting...</div>
+            </div>
+            <div class="info-card">
+                <div class="label">Last Update</div>
+                <div id="lastUpdate" style="font-size:13px; color:#374151; margin-top:4px;">--</div>
+            </div>
+        </div>
+
+        <!-- Customer Panel -->
+        <div class="section">
+            <h3>👤 Customer - Watch Job</h3>
+            <label>Customer Token</label>
+            <textarea id="customerToken" rows="2" placeholder="Paste customer JWT token"></textarea>
+            <label>Job ID</label>
+            <input id="jobId" value="9779a644-2226-456a-a23f-b450979de2d7" />
+            <button class="btn btn-blue" onclick="watchJob()">👁️ Watch Job</button>
+            <button class="btn btn-gray" onclick="stopWatching()">Stop</button>
+        </div>
+
+        <!-- Worker Panel -->
+        <div class="section">
+            <h3>🔧 Worker - Send Location</h3>
+            <label>Worker Token</label>
+            <textarea id="workerToken" rows="2" placeholder="Paste worker JWT token"></textarea>
+            <div style="display:flex; gap:8px;">
+                <div style="flex:1">
+                    <label>Latitude</label>
+                    <input id="latitude" value="-1.2850" />
+                </div>
+                <div style="flex:1">
+                    <label>Longitude</label>
+                    <input id="longitude" value="36.8100" />
+                </div>
+            </div>
+            <button class="btn btn-green" onclick="sendLocation()">📍 Send Once</button>
+            <button class="btn btn-green" onclick="simulateMovement()">🚶 Simulate</button>
+            <button class="btn btn-red" onclick="stopSimulation()">Stop</button>
+            <div style="font-size:12px; color:#6b7280; margin-top:6px;">
+                💡 Click anywhere on map to set worker position
+            </div>
+        </div>
+
+        <!-- Log -->
+        <div id="log"></div>
+    </div>
+</div>
+
+<script>
+    // ─── Config ───────────────────────────────────────────────────────────────
+    const JOB_LAT = -1.2922;
+    const JOB_LNG = 36.8220;
+    const ARRIVAL_THRESHOLD = 10; // meters
+    const SERVER = 'http://localhost:5000';
+
+    // ─── Map Setup ────────────────────────────────────────────────────────────
+    const map = L.map('map').setView([JOB_LAT, JOB_LNG], 15);
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+    }).addTo(map);
+
+    // Job location marker (red pin)
+    const jobMarker = L.marker([JOB_LAT, JOB_LNG], {
+        icon: L.divIcon({
+            html: '<div style="font-size:28px">🏠</div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 30]
+        })
+    }).addTo(map).bindPopup('<b>Job Location</b><br>Fix kitchen sink').openPopup();
+
+    // Arrival radius circle (10 meters)
+    const arrivalCircle = L.circle([JOB_LAT, JOB_LNG], {
+        radius: 50,
+        color: '#059669',
+        fillColor: '#d1fae5',
+        fillOpacity: 0.4,
+        weight: 2
+    }).addTo(map).bindTooltip('10m arrival zone', {permanent: true, direction: 'top'});
+
+    // Worker marker
+    let workerMarker = null;
+    let routePolyline = L.polyline([], { color: '#1a56db', weight: 3 }).addTo(map);
+    let routePoints = [];
+    let updatesCount = 0;
+    let simulationInterval = null;
+
+    // Click on map to set worker position
+    map.on('click', (e) => {
+        document.getElementById('latitude').value = e.latlng.lat.toFixed(6);
+        document.getElementById('longitude').value = e.latlng.lng.toFixed(6);
+        log(`📌 Position set: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
+    });
+
+    // ─── WebSocket ────────────────────────────────────────────────────────────
+    const socket = io(SERVER);
+
+    socket.on('connect', () => {
+        document.getElementById('connectionStatus').textContent = 'Connected';
+        document.getElementById('connectionStatus').className = 'status-badge status-connected';
+        log('✅ Connected to server');
+    });
+
+    socket.on('disconnect', () => {
+        document.getElementById('connectionStatus').textContent = 'Disconnected';
+        document.getElementById('connectionStatus').className = 'status-badge status-disconnected';
+        log('❌ Disconnected');
+    });
+
+    socket.on('watching', (data) => log('👁️ ' + data.message));
+
+    socket.on('location_update', (data) => {
+        updateWorkerOnMap(data.latitude, data.longitude);
+        if (data.distance_to_job !== undefined) {
+            updateDistance(data.distance_to_job);
+        }
+        document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString();
+    });
+
+    socket.on('worker_arrived', (data) => {
+        showArrivalAlert(data.distance);
+        log(`🚨 ${data.message}`);
+    });
+
+    // ─── Map Functions ────────────────────────────────────────────────────────
+    function updateWorkerOnMap(lat, lng) {
+        updatesCount++;
+        document.getElementById('updatesCount').textContent = updatesCount;
+        document.getElementById('workerCoords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+        // Update or create worker marker
+        if (workerMarker) {
+            workerMarker.setLatLng([lat, lng]);
+        } else {
+            workerMarker = L.marker([lat, lng], {
+                icon: L.divIcon({
+                    html: '<div style="font-size:28px">🔧</div>',
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 30]
+                })
+            }).addTo(map).bindPopup('<b>Worker</b><br>Jane Worker');
+        }
+
+        // Draw route
+        routePoints.push([lat, lng]);
+        routePolyline.setLatLngs(routePoints);
+
+        // Pan map to show both markers
+        if (routePoints.length === 1) {
+            map.setView([lat, lng], 15);
+        }
+    }
+
+    function updateDistance(distance) {
+        const el = document.getElementById('distanceValue');
+        el.textContent = distance < 1 ? '<1' : Math.round(distance);
+        el.className = 'value ' + (
+            distance <= 10 ? 'distance-arrived' :
+            distance <= 50 ? 'distance-near' : 'distance-far'
+        );
+    }
+
+    function showArrivalAlert(distance) {
+        const alert = document.getElementById('arrivalAlert');
+        alert.classList.add('show');
+        document.getElementById('arrivalDistance').textContent =
+            `Worker is ${distance}m from job location`;
+        // Flash the arrival circle
+        arrivalCircle.setStyle({ color: '#059669', fillOpacity: 0.8 });
+        setTimeout(() => arrivalCircle.setStyle({ fillOpacity: 0.4 }), 1000);
+    }
+
+    // ─── Customer Functions ───────────────────────────────────────────────────
+    function watchJob() {
+        const jobId = document.getElementById('jobId').value;
+        socket.emit('watch_job', { job_id: jobId });
+        document.getElementById('arrivalAlert').classList.remove('show');
+        routePoints = [];
+        routePolyline.setLatLngs([]);
+        updatesCount = 0;
+        log(`👁️ Watching job: ${jobId}`);
+    }
+
+    function stopWatching() {
+        socket.emit('stop_watching', { job_id: document.getElementById('jobId').value });
+        log('🛑 Stopped watching');
+    }
+
+    // ─── Worker Functions ─────────────────────────────────────────────────────
+    function sendLocation() {
+        const jobId = document.getElementById('jobId').value;
+        const lat = parseFloat(document.getElementById('latitude').value);
+        const lng = parseFloat(document.getElementById('longitude').value);
+
+        // Send via WebSocket
+        socket.emit('worker_location_update', {
+            job_id: jobId,
+            worker_id: 'c1ea2d40-c8fd-4840-a9ab-95cdb2de40c4',
+            latitude: lat,
+            longitude: lng
+        });
+
+        // Also send via REST (saves to DB)
+        const token = document.getElementById('workerToken').value.trim();
+        if (token) {
+            fetch(`${SERVER}/api/tracking/${jobId}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ latitude: lat, longitude: lng })
+            }).then(r => r.json()).then(data => {
+                if (data.arrived) showArrivalAlert(data.distance_to_job);
+            });
+        }
+
+        log(`📤 Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    }
+
+    // Simulate worker moving toward job location
+    function simulateMovement() {
+        if (simulationInterval) return;
+        let lat = parseFloat(document.getElementById('latitude').value);
+        let lng = parseFloat(document.getElementById('longitude').value);
+        const targetLat = JOB_LAT;
+        const targetLng = JOB_LNG;
+        let step = 0;
+        const totalSteps = 60;
+
+        log('🚶 Simulating worker moving toward job...');
+
+        simulationInterval = setInterval(() => {
+            step++;
+            // Move closer each step - faster approach
+            lat = lat + (targetLat - lat) * 0.15;
+            lng = lng + (targetLng - lng) * 0.15;
+
+            document.getElementById('latitude').value = lat.toFixed(6);
+            document.getElementById('longitude').value = lng.toFixed(6);
+            sendLocation();
+
+            // Stop when very close
+            const dist = haversine(lat, lng, targetLat, targetLng);
+            if (dist < 2 || step >= totalSteps) {
+                stopSimulation();
+                log('🏁 Worker reached destination!');
+            }
+        }, 1000);
+    }
+
+    function haversine(lat1, lon1, lat2, lon2) {
+        const R = 6371000;
+        const p1 = lat1 * Math.PI/180, p2 = lat2 * Math.PI/180;
+        const dp = (lat2-lat1) * Math.PI/180;
+        const dl = (lon2-lon1) * Math.PI/180;
+        const a = Math.sin(dp/2)**2 + Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function stopSimulation() {
+        clearInterval(simulationInterval);
+        simulationInterval = null;
+        log('🛑 Simulation stopped');
+    }
+
+    // ─── Log ──────────────────────────────────────────────────────────────────
+    function log(msg) {
+        const el = document.getElementById('log');
+        el.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}\n`;
+        el.scrollTop = el.scrollHeight;
+    }
+</script>
+</body>
+</html>

@@ -15,10 +15,13 @@ def create_category():
         category = Category(name=data['name'], description=data.get('description'))
         db.session.add(category)
         db.session.commit()
-        
         return jsonify({'message': 'Category created', 'category_id': category.id}), 201
     except Exception as e:
-        return jsonify({'error': 'Failed to create category'}), 500
+        db.session.rollback()
+        print(f"Category error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
 
 @bp.route('', methods=['GET'])
 def get_categories():

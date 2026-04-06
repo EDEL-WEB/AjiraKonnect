@@ -12,6 +12,8 @@ class Job(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     location = db.Column(db.String(200), nullable=False)
+    job_latitude = db.Column(db.Float)
+    job_longitude = db.Column(db.Float)
     budget = db.Column(db.Numeric(10, 2), nullable=False)
     status = db.Column(db.Enum('pending', 'accepted', 'in_progress', 'completed', 'disputed', 'cancelled', name='job_statuses'), default='pending', index=True)
     scheduled_date = db.Column(db.DateTime)

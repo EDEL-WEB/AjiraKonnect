@@ -8,5 +8,6 @@ from app.models.offline import SyncQueue, SMSLog, USSDSession
 from app.models.notification import Notification, UserPresence
 from app.models.job_update import JobUpdate
 from app.models.verification import OTPVerification, WorkerVerification, LoginAttempt
+from app.models.tracking import JobTracking
 
-__all__ = ['User', 'Worker', 'WorkerSkill', 'Category', 'Job', 'Payment', 'Wallet', 'Transaction', 'Review', 'SyncQueue', 'SMSLog', 'USSDSession', 'Notification', 'UserPresence', 'JobUpdate', 'OTPVerification', 'WorkerVerification', 'LoginAttempt']
+__all__ = ['User', 'Worker', 'WorkerSkill', 'Category', 'Job', 'Payment', 'Wallet', 'Transaction', 'Review', 'SyncQueue', 'SMSLog', 'USSDSession', 'Notification', 'UserPresence', 'JobUpdate', 'OTPVerification', 'WorkerVerification', 'LoginAttempt', 'JobTracking']

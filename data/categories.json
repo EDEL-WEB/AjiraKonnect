@@ -17,13 +17,13 @@
             {
               "type": "Licensed Plumber",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 500, "max": 1500, "currency": "KES"},
+              "avg_job_rate": {"min": 1000, "max": 2500, "currency": "KES"},
               "demand_score": 9
             },
             {
               "type": "Plumbing Assistant",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 300, "max": 800, "currency": "KES"},
+              "avg_job_rate": {"min": 800, "max": 1500, "currency": "KES"},
               "demand_score": 7
             }
           ],
@@ -75,7 +75,7 @@
             {
               "type": "Licensed Electrician",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 600, "max": 2000, "currency": "KES"},
+              "avg_job_rate": {"min": 2000, "max": 8000, "currency": "KES"},
               "demand_score": 9
             }
           ],
@@ -125,7 +125,7 @@
             {
               "type": "Professional Cleaner",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 200, "max": 600, "currency": "KES"},
+              "avg_job_rate": {"min": 500, "max": 2000, "currency": "KES"},
               "demand_score": 9
             }
           ],
@@ -175,7 +175,7 @@
             {
               "type": "Professional Hairstylist",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 500, "max": 2000, "currency": "KES"},
+              "avg_job_rate": {"min": 500, "max": 3000, "currency": "KES"},
               "demand_score": 9
             }
           ],
@@ -225,7 +225,7 @@
             {
               "type": "Phone Technician",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 400, "max": 1500, "currency": "KES"},
+              "avg_job_rate": {"min": 1000, "max": 4000, "currency": "KES"},
               "demand_score": 9
             }
           ],
@@ -263,7 +263,7 @@
             {
               "type": "Driver with Truck",
               "certification_required": false,
-              "avg_hourly_rate": {"min": 500, "max": 2000, "currency": "KES"},
+              "avg_job_rate": {"min": 5000, "max": 20000, "currency": "KES"},
               "demand_score": 9
             }
           ],
