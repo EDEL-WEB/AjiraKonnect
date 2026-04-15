@@ -5,10 +5,14 @@ from flask import current_app
 class JobService:
     @staticmethod
     def create_job(customer_id, category_id, title, description, location, budget, scheduled_date=None):
-        job = Job(customer_id=customer_id, category_id=category_id, title=title, 
+        job = Job(customer_id=customer_id, category_id=category_id, title=title,
                  description=description, location=location, budget=budget, scheduled_date=scheduled_date)
         db.session.add(job)
         db.session.commit()
+
+        from app.services.notification_service import NotificationService
+        NotificationService.notify_job_created(job)
+
         return job
     
     @staticmethod
@@ -29,6 +33,10 @@ class JobService:
         db.session.add(payment)
         
         db.session.commit()
+
+        from app.services.notification_service import NotificationService
+        NotificationService.notify_job_accepted(job)
+
         return job
     
     @staticmethod

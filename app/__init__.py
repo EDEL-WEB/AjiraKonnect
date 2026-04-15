@@ -3,7 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_jwt_extended import JWTManager
 from flask_migrate import Migrate
 from flask_cors import CORS
-from flask_socketio import SocketIO
+from flask_socketio import SocketIO, join_room
 from config import Config
 
 db = SQLAlchemy()
@@ -19,9 +19,9 @@ def create_app():
     jwt.init_app(app)
     migrate.init_app(app, db)
     CORS(app)
-    socketio.init_app(app, cors_allowed_origins='*')
+    socketio.init_app(app, cors_allowed_origins='*', async_mode='threading', logger=False, engineio_logger=False)
     
-    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates, tracking
+    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates, tracking, africastalking
     
     app.register_blueprint(auth.bp)
     app.register_blueprint(users.bp)
@@ -37,5 +37,17 @@ def create_app():
     app.register_blueprint(notifications.bp)
     app.register_blueprint(job_updates.bp)
     app.register_blueprint(tracking.bp)
-    
+    app.register_blueprint(africastalking.bp)
+
+    @socketio.on('join')
+    def on_join(data):
+        """Client emits {token} → server validates and joins room = user_id."""
+        from flask_jwt_extended import decode_token
+        try:
+            token_data = decode_token(data.get('token', ''))
+            user_id = token_data['sub']
+            join_room(user_id)
+        except Exception:
+            pass  # invalid token — silently ignore
+
     return app

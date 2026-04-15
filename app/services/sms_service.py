@@ -1,29 +1,20 @@
-import os
-import africastalking
 from app import db
 from app.models.offline import SMSLog
+from app.services.africastalking_service import at_service
 
 class SMSService:
-    def __init__(self):
-        username = os.getenv('AFRICASTALKING_USERNAME', 'sandbox')
-        api_key = os.getenv('AFRICASTALKING_API_KEY')
-        africastalking.initialize(username, api_key)
-        self.sms = africastalking.SMS
-    
     def send_sms(self, phone, message):
         try:
-            response = self.sms.send(message, [phone])
-            
+            result = at_service.send_sms(phone, message)
             log = SMSLog(
                 phone=phone,
                 message=message,
                 direction='outbound',
                 status='sent',
-                external_id=response['SMSMessageData']['Recipients'][0].get('messageId')
+                external_id=result.get('message_id')
             )
             db.session.add(log)
             db.session.commit()
-            
             return True
         except Exception as e:
             log = SMSLog(phone=phone, message=message, direction='outbound', status='failed')

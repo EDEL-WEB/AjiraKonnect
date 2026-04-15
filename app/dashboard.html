@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Live Notification Dashboard</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      padding: 20px;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 15px;
+    }
+
+    button {
+      padding: 10px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .online { background: green; color: white; }
+    .offline { background: red; color: white; }
+    .action { background: #3b82f6; color: white; }
+
+    #log {
+      height: 250px;
+      overflow-y: auto;
+      background: black;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    .badge {
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-weight: bold;
+    }
+
+    .ok { background: green; }
+    .bad { background: red; }
+  </style>
+</head>
+
+<body>
+
+<h1>🔔 LIVE Notification System Dashboard</h1>
+
+<!-- STATUS -->
+<div class="card">
+  <h3>Worker Status</h3>
+  <p id="status">Loading...</p>
+
+  <button class="online" onclick="setStatus(true)">Set Online</button>
+  <button class="offline" onclick="setStatus(false)">Set Offline</button>
+</div>
+
+<!-- JOB -->
+<div class="card">
+  <h3>Create Job (Triggers Notification Engine)</h3>
+
+  <input id="title" placeholder="Job title" />
+  <input id="location" placeholder="Location" />
+  <input id="budget" placeholder="Budget" />
+
+  <button class="action" onclick="createJob()">Create Job</button>
+</div>
+
+<!-- LOGS -->
+<div class="card">
+  <h3>Live Event Stream</h3>
+  <div id="log"></div>
+</div>
+
+<script>
+const BASE = "http://localhost:5000";
+const socket = io(BASE);
+
+let workerOnline = false;
+const logBox = document.getElementById("log");
+const statusText = document.getElementById("status");
+
+function log(msg) {
+  const time = new Date().toLocaleTimeString();
+  logBox.innerHTML = `[${time}] ${msg}<br>` + logBox.innerHTML;
+}
+
+/* ---------------- SOCKET EVENTS ---------------- */
+
+socket.on("connect", () => {
+  log("🔌 Connected to Socket.IO server");
+});
+
+socket.on("notification", (data) => {
+  log("📡 PUSH EVENT: " + data.message);
+});
+
+/* ---------------- PRESENCE API ---------------- */
+
+async function setStatus(isOnline) {
+  workerOnline = isOnline;
+
+  const res = await fetch(`${BASE}/api/presence`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      user_id: "123",
+      is_online: isOnline
+    })
+  });
+
+  const data = await res.json().catch(()=>({}));
+
+  statusText.innerHTML =
+    "Status: " +
+    (isOnline
+      ? "<span class='badge ok'>ONLINE 🟢</span>"
+      : "<span class='badge bad'>OFFLINE 🔴</span>");
+
+  log("Worker status updated → " + (isOnline ? "ONLINE" : "OFFLINE"));
+}
+
+/* ---------------- CREATE JOB ---------------- */
+
+async function createJob() {
+  const payload = {
+    customer_id: "1",
+    category_id: "1",
+    title: document.getElementById("title").value,
+    location: document.getElementById("location").value,
+    budget: document.getElementById("budget").value
+  };
+
+  log("📨 Creating job...");
+
+  const res = await fetch(`${BASE}/api/jobs`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+
+  log("✅ Job created: " + JSON.stringify(data));
+}
+</script>
+
+</body>
+</html>

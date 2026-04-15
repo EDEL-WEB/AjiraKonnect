@@ -70,30 +70,52 @@ class NotificationService:
         db.session.add(notification)
         db.session.commit()
         
-        # If SMS, send immediately
         if notification_type == 'sms':
             NotificationService._send_sms_notification(notification, user)
-        
+        else:
+            NotificationService._send_push_notification(notification)
+
         return notification
     
     @staticmethod
+    def _send_push_notification(notification):
+        """Emit real-time push via WebSocket to the online worker/customer."""
+        try:
+            from app import socketio
+            socketio.emit(
+                'notification',
+                {
+                    'id':       notification.id,
+                    'title':    notification.title,
+                    'message':  notification.message,
+                    'job_id':   notification.job_id,
+                    'priority': notification.priority,
+                },
+                room=notification.user_id   # client must join room = their user_id on connect
+            )
+            notification.status = 'sent'
+            notification.sent_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            notification.status = 'failed'
+            notification.error_message = str(e)
+            db.session.commit()
+
+    @staticmethod
     def _send_sms_notification(notification, user):
-        """Send SMS notification via Africa's Talking"""
+        """Send SMS fallback via Africa's Talking when worker is offline."""
         try:
             from app.services.sms_service import SMSService
-            sms = SMSService()
-            
-            success = sms.send_sms(user.phone, notification.message)
-            
+            success = SMSService().send_sms(user.phone, notification.message)
+
             if success:
                 notification.status = 'sent'
                 notification.sent_at = datetime.utcnow()
             else:
                 notification.status = 'failed'
                 notification.retry_count += 1
-            
+
             db.session.commit()
-            
         except Exception as e:
             notification.status = 'failed'
             notification.error_message = str(e)
