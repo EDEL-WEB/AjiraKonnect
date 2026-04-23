@@ -1,5 +1,6 @@
 from app import db
 from app.models import Job, Payment, Worker
+from datetime import datetime, timedelta
 from flask import current_app
 
 class JobService:
@@ -20,18 +21,9 @@ class JobService:
         job = Job.query.get_or_404(job_id)
         if job.status != 'pending':
             raise ValueError('Job is not available')
-        
+
         job.worker_id = worker_id
-        job.status = 'accepted'
-        
-        commission_rate = current_app.config['COMMISSION_RATE']
-        commission = float(job.budget) * commission_rate
-        worker_payout = float(job.budget) - commission
-        
-        payment = Payment(job_id=job.id, amount=job.budget, commission=commission, 
-                         worker_payout=worker_payout, status='held')
-        db.session.add(payment)
-        
+        job.status    = 'accepted'
         db.session.commit()
 
         from app.services.notification_service import NotificationService
@@ -53,14 +45,74 @@ class JobService:
         if new_status not in valid_transitions.get(job.status, []):
             raise ValueError(f'Cannot transition from {job.status} to {new_status}')
         
+        # ── BLOCK COMPLETION WITHOUT ESCROW PAYMENT ──────────────────────────
+        if new_status == 'completed':
+            payment = Payment.query.filter_by(job_id=job_id).first()
+            if not payment or payment.status != 'held':
+                raise ValueError(
+                    'Payment must be held in escrow before completing this job. '
+                    'Ask the customer to pay through KaziConnect first.'
+                )
+        
         job.status = new_status
         
         if new_status == 'completed':
-            from datetime import datetime
             job.completed_at = datetime.utcnow()
-            
             worker = Worker.query.get(job.worker_id)
             worker.total_jobs_completed += 1
+            JobService._run_off_platform_detection(job.worker_id)
         
         db.session.commit()
         return job
+
+    @staticmethod
+    def _run_off_platform_detection(worker_id):
+        """Detect workers with suspicious off-platform payment patterns"""
+        # Count completed jobs in last 30 days
+        since = datetime.utcnow() - timedelta(days=30)
+        completed = Job.query.filter(
+            Job.worker_id == worker_id,
+            Job.status == 'completed',
+            Job.completed_at >= since
+        ).count()
+
+        if completed < 3:
+            return  # Not enough data
+
+        # Count jobs paid through platform
+        paid = db.session.query(Job).join(
+            Payment, Payment.job_id == Job.id
+        ).filter(
+            Job.worker_id == worker_id,
+            Job.status == 'completed',
+            Job.completed_at >= since,
+            Payment.status == 'released'
+        ).count()
+
+        payment_rate = paid / completed if completed > 0 else 0
+
+        # Flag if less than 70% of completed jobs were paid through platform
+        if payment_rate < 0.7:
+            JobService._flag_worker(worker_id, completed, paid, payment_rate)
+
+    @staticmethod
+    def _flag_worker(worker_id, completed, paid, rate):
+        worker = Worker.query.get(worker_id)
+        if not worker:
+            return
+
+        worker.flagged_for_review = True
+        db.session.commit()
+
+        # Notify admin
+        from app.models import User
+        user = User.query.get(worker.user_id)
+        from app.services.notification_service import NotificationService
+        NotificationService.send_notification(
+            user.id,
+            f'Your account has been flagged: {completed} completed jobs but only '
+            f'{paid} paid through KaziConnect ({int(rate*100)}%). '
+            f'Off-platform payments violate our terms. Account may be suspended.',
+            title='Account Flagged - Payment Policy Violation',
+            priority='high'
+        )

@@ -50,12 +50,29 @@ def update_status(job_id):
     try:
         data = request.get_json()
         job = JobService.update_job_status(job_id, data['status'])
-        
         return jsonify({'message': 'Status updated', 'status': job.status}), 200
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'error': 'Failed to update status'}), 500
+        print(f"Status update error: {e}")
+        import traceback; traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/flagged-workers', methods=['GET'])
+@jwt_required()
+@role_required('admin')
+def get_flagged_workers():
+    """Admin: view workers flagged for off-platform payments"""
+    from app.models import Worker, User
+    workers = Worker.query.filter_by(flagged_for_review=True).all()
+    return jsonify({
+        'flagged_workers': [{
+            'worker_id': w.id,
+            'user_id': w.user_id,
+            'total_jobs_completed': w.total_jobs_completed,
+            'rating': str(w.rating)
+        } for w in workers]
+    }), 200
 
 @bp.route('/<job_id>', methods=['GET'])
 @jwt_required()

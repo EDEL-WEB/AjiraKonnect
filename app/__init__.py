@@ -21,7 +21,7 @@ def create_app():
     CORS(app)
     socketio.init_app(app, cors_allowed_origins='*', async_mode='threading', logger=False, engineio_logger=False)
     
-    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates, tracking, africastalking
+    from app.routes import auth, users, workers, categories, jobs, payments, reviews, sync, sms, ussd, verification, notifications, job_updates, tracking, africastalking, escrow
     
     app.register_blueprint(auth.bp)
     app.register_blueprint(users.bp)
@@ -38,6 +38,7 @@ def create_app():
     app.register_blueprint(job_updates.bp)
     app.register_blueprint(tracking.bp)
     app.register_blueprint(africastalking.bp)
+    app.register_blueprint(escrow.bp)
 
     @socketio.on('join')
     def on_join(data):

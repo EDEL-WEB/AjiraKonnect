@@ -12,6 +12,7 @@ class Worker(db.Model):
     bio = db.Column(db.Text)
     availability = db.Column(db.Boolean, default=True)
     verification_status = db.Column(db.Enum('pending', 'verified', 'rejected', name='verification_statuses'), default='pending')
+    flagged_for_review = db.Column(db.Boolean, default=False)
     rating = db.Column(db.Numeric(3, 2), default=0.0)
     total_reviews = db.Column(db.Integer, default=0)
     total_jobs_completed = db.Column(db.Integer, default=0)
