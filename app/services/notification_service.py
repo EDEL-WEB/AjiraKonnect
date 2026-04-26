@@ -124,24 +124,33 @@ class NotificationService:
     
     @staticmethod
     def notify_job_created(job):
-        """Notify worker about new job in their area/category"""
+        """Notify nearest verified workers within 20km radius matching the job category"""
         from app.models import Worker, WorkerSkill
-        
-        # Find workers with matching skills
-        workers = Worker.query.join(WorkerSkill).filter(
+        from app.services.worker_service import haversine_km
+
+        query = Worker.query.join(WorkerSkill).filter(
             WorkerSkill.category_id == job.category_id,
             Worker.verification_status == 'verified',
             Worker.availability == True
-        ).all()
-        
-        for worker in workers[:5]:  # Notify top 5 workers
-            message = f"New job available: {job.title} in {job.location}. Budget: KES {job.budget}"
+        )
+        candidates = query.all()
+
+        # Filter by distance if job has coordinates, else fall back to text match
+        if job.job_latitude and job.job_longitude:
+            candidates = [
+                (haversine_km(job.job_latitude, job.job_longitude, w.latitude, w.longitude), w)
+                for w in candidates if w.latitude and w.longitude
+            ]
+            candidates = sorted(candidates, key=lambda x: x[0])
+            candidates = [w for dist, w in candidates if dist <= 20]
+        else:
+            candidates = [(0, w) for w in candidates if job.location.lower() in w.location.lower()]
+
+        for _, worker in candidates[:5]:
+            message = f"New job near you: {job.title} in {job.location}. Dial *384# to accept."
             NotificationService.send_notification(
-                worker.user_id,
-                message,
-                title="New Job Available",
-                job_id=job.id,
-                priority='high'
+                worker.user_id, message,
+                title='New Job Available', job_id=job.id, priority='high'
             )
     
     @staticmethod
@@ -152,6 +161,48 @@ class NotificationService:
             job.customer_id,
             message,
             title="Job Accepted",
+            job_id=job.id,
+            priority='high'
+        )
+
+    @staticmethod
+    def notify_rate_proposed(job):
+        """Notify customer of worker's proposed rate — requires approval before escrow"""
+        message = (
+            f"Worker proposes KES {job.proposed_rate} for '{job.title}'. "
+            f"Dial *384# or open KaziConnect to approve or reject."
+        )
+        NotificationService.send_notification(
+            job.customer_id,
+            message,
+            title="Rate Proposed - Action Required",
+            job_id=job.id,
+            priority='high'
+        )
+
+    @staticmethod
+    def notify_rate_approved(job):
+        """Notify worker that customer approved their rate and payment is held"""
+        message = (
+            f"Customer approved your rate of KES {job.proposed_rate} for '{job.title}'. "
+            f"Payment is now held in escrow. You can start the job."
+        )
+        NotificationService.send_notification(
+            job.worker.user_id,
+            message,
+            title="Rate Approved - Payment Held",
+            job_id=job.id,
+            priority='high'
+        )
+
+    @staticmethod
+    def notify_rate_rejected(job):
+        """Notify worker that customer rejected their rate"""
+        message = f"Customer rejected your rate of KES {job.proposed_rate} for '{job.title}'. Job cancelled."
+        NotificationService.send_notification(
+            job.worker.user_id,
+            message,
+            title="Rate Rejected",
             job_id=job.id,
             priority='high'
         )

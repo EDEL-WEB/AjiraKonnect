@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import jwt_required
 from app.services.sms_service import SMSService
 from app.models import User, Worker
 from app.services.job_service import JobService
+from app.utils.decorators import role_required
 
 bp = Blueprint('sms', __name__, url_prefix='/api/sms')
 
@@ -33,6 +35,8 @@ def sms_callback():
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/send', methods=['POST'])
+@jwt_required()
+@role_required('admin')
 def send_sms():
     try:
         data = request.get_json()

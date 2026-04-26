@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KaziConnect - Unified Test UI</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background: #f5f5f5; }
+
+        .header {
+            background: linear-gradient(135deg, #1a56db 0%, #0d47a1 100%);
+            color: white;
+            padding: 16px 24px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title { font-size: 24px; font-weight: 600; }
+        .header-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            background: rgba(255,255,255,0.2);
+        }
+        .status-connected { background: #10b981; }
+        .status-disconnected { background: #ef4444; }
+
+        .container { display: flex; height: calc(100vh - 60px); }
+
+        /* Tabs Navigation */
+        .tabs-nav {
+            display: flex;
+            background: white;
+            border-bottom: 2px solid #e5e7eb;
+            width: 100%;
+            position: absolute;
+            top: 60px;
+            left: 0;
+            z-index: 10;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 24px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #6b7280;
+            transition: all 0.3s ease;
+            border-bottom: 3px solid transparent;
+            position: relative;
+        }
+
+        .tab-btn:hover { color: #1a56db; background: #f9fafb; }
+        .tab-btn.active {
+            color: #1a56db;
+            border-bottom-color: #1a56db;
+        }
+
+        .tab-icon { margin-right: 8px; }
+
+        /* Tab Content */
+        .tabs-container { position: relative; width: 100%; height: 100%; margin-top: 50px; }
+        .tab-content {
+            display: none;
+            height: 100%;
+            width: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .tab-content.active { display: flex; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* Main layout for tabs with map */
+        .tab-with-map { display: flex; gap: 0; }
+        .map-panel { flex: 1; }
+        .side-panel {
+            width: 380px;
+            background: white;
+            border-left: 1px solid #e5e7eb;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            box-shadow: -2px 0 4px rgba(0,0,0,0.05);
+        }
+
+        /* Tab content without map */
+        .tab-full { width: 100%; overflow-y: auto; }
+
+        /* Form styling */
+        .form-section {
+            padding: 20px;
+            background: white;
+            margin: 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+
+        .form-section h3 {
+            font-size: 16px;
+            font-weight: 600;
+            color: #111827;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #1a56db;
+            box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.1);
+        }
+
+        textarea { resize: vertical; }
+
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+        .button-group {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .btn-primary { background: #1a56db; color: white; }
+        .btn-primary:hover { background: #1e40af; }
+
+        .btn-success { background: #059669; color: white; }
+        .btn-success:hover { background: #047857; }
+
+        .btn-secondary { background: #6b7280; color: white; }
+        .btn-secondary:hover { background: #4b5563; }
+
+        .btn-danger { background: #dc2626; color: white; }
+        .btn-danger:hover { background: #b91c1c; }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Cards and displays */
+        .card {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+
+        .card-title { font-weight: 600; font-size: 13px; color: #111827; margin-bottom: 6px; }
+        .card-value { font-size: 16px; color: #1a56db; font-weight: 700; }
+        .card-meta { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+        /* Alert */
+        .alert {
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .alert-info { background: #dbeafe; color: #0c4a6e; border: 1px solid #93c5fd; }
+
+        /* Log */
+        #log {
+            background: #111827;
+            color: #10b981;
+            padding: 12px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+            flex-shrink: 0;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .log-line { margin-bottom: 2px; line-height: 1.4; }
+
+        /* Worker list */
+        .worker-item {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .worker-info { flex: 1; }
+        .worker-name { font-weight: 600; color: #111827; font-size: 13px; }
+        .worker-meta { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        .worker-distance { font-weight: 600; color: #1a56db; }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .badge-primary { background: #dbeafe; color: #0c4a6e; }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+
+        /* Job tracking display */
+        .tracking-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .stat-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 12px;
+            text-align: center;
+        }
+
+        .stat-value { font-size: 24px; font-weight: 700; color: #1a56db; }
+        .stat-label { font-size: 12px; color: #6b7280; margin-top: 4px; }
+
+        /* Arrival alert */
+        .arrival-banner {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            padding: 16px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            display: none;
+            animation: slideDown 0.3s ease;
+        }
+
+        .arrival-banner.show { display: block; }
+
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .arrival-banner-icon { font-size: 32px; margin-bottom: 8px; }
+        .arrival-banner-title { font-size: 16px; font-weight: 600; }
+        .arrival-banner-sub { font-size: 13px; opacity: 0.9; margin-top: 4px; }
+
+        /* Empty state */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 300px;
+            color: #9ca3af;
+            text-align: center;
+        }
+
+        .empty-state-icon { font-size: 48px; margin-bottom: 12px; }
+        .empty-state-title { font-size: 16px; font-weight: 600; color: #6b7280; margin-bottom: 4px; }
+        .empty-state-text { font-size: 13px; color: #9ca3af; }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .side-panel { width: 340px; }
+            .form-row { grid-template-columns: 1fr; }
+        }
+
+        #map { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+    <div class="header-title">🚀 KaziConnect Unified Test</div>
+    <div id="connectionStatus" class="header-status status-disconnected">Offline</div>
+</div>
+
+<!-- Tabs Navigation -->
+<div class="tabs-nav">
+    <button class="tab-btn active" onclick="switchTab('booking')">
+        <span class="tab-icon">📝</span> Book Job
+    </button>
+    <button class="tab-btn" onclick="switchTab('workers')">
+        <span class="tab-icon">👥</span> Find Workers
+    </button>
+    <button class="tab-btn" onclick="switchTab('tracking')">
+        <span class="tab-icon">🗺️</span> Live Tracking
+    </button>
+</div>
+
+<!-- Tabs Container -->
+<div class="tabs-container">
+
+    <!-- TAB 1: BOOK JOB -->
+    <div id="booking" class="tab-content active tab-full">
+        <div style="display: flex; height: 100%;">
+            <!-- Main form -->
+            <div style="flex: 1; overflow-y: auto;">
+                <div class="form-section">
+                    <h3>📝 Create Job Booking</h3>
+                    <div id="bookingAlert"></div>
+
+                    <div class="form-group">
+                        <label>Job Title *</label>
+                        <input id="jobTitle" type="text" placeholder="e.g., Fix kitchen sink" value="Fix kitchen sink repair">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Job Description *</label>
+                        <textarea id="jobDescription" rows="3" placeholder="Describe the job details..." value="Pipe is leaking and needs urgent repair">Pipe is leaking and needs urgent repair</textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select id="jobCategory">
+                            <option value="">Select category</option>
+                            <option value="plumbing" selected>Plumbing</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="carpentry">Carpentry</option>
+                            <option value="painting">Painting</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="landscaping">Landscaping</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Budget (KES) *</label>
+                        <input id="jobBudget" type="number" placeholder="2500" value="2500" min="100">
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Job Latitude *</label>
+                            <input id="bookingLat" type="number" step="0.0001" value="-1.2922" placeholder="-1.2922">
+                        </div>
+                        <div class="form-group">
+                            <label>Job Longitude *</label>
+                            <input id="bookingLng" type="number" step="0.0001" value="36.8220" placeholder="36.8220">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Schedule Date & Time</label>
+                        <input id="jobSchedule" type="datetime-local" value="">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Customer Token (Optional)</label>
+                        <textarea id="bookingToken" rows="2" placeholder="Paste JWT token for authentication"></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="bookJob()">📋 Book Job</button>
+                        <button class="btn btn-secondary" onclick="clearBookingForm()">Clear</button>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>📊 Booking History</h3>
+                    <div id="bookingHistory" class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <div class="empty-state-title">No bookings yet</div>
+                        <div class="empty-state-text">Create a job booking to see it here</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Summary panel -->
+            <div style="width: 300px; background: white; border-left: 1px solid #e5e7eb; padding: 20px; overflow-y: auto;">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">📈 Quick Stats</h3>
+                <div class="card">
+                    <div class="card-title">Total Bookings</div>
+                    <div class="card-value" id="totalBookings">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Average Budget</div>
+                    <div class="card-value" id="avgBudget">KES 0</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Pending Jobs</div>
+                    <div class="card-value" id="pendingJobs">0</div>
+                </div>
+                <div id="bookingLog" style="margin-top: 20px; font-family: monospace; font-size: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; max-height: 400px; overflow-y: auto; color: #10b981;">
+                    <div style="color: #6b7280;">API Responses:</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 2: FIND WORKERS -->
+    <div id="workers" class="tab-content tab-full">
+        <div style="display: flex; height: 100%;">
+            <!-- Search and filters -->
+            <div style="flex: 1; overflow-y: auto;">
+                <div class="form-section">
+                    <h3>🔍 Find Workers Near Location</h3>
+                    <div id="workersAlert"></div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Search Latitude *</label>
+                            <input id="searchLat" type="number" step="0.0001" value="-1.2922" placeholder="-1.2922">
+                        </div>
+                        <div class="form-group">
+                            <label>Search Longitude *</label>
+                            <input id="searchLng" type="number" step="0.0001" value="36.8220" placeholder="36.8220">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Radius (meters)</label>
+                            <input id="searchRadius" type="number" value="5000" min="100" step="100">
+                        </div>
+                        <div class="form-group">
+                            <label>Min Rating</label>
+                            <input id="minRating" type="number" value="3.0" min="1" max="5" step="0.1">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Category (Optional)</label>
+                        <select id="workerCategory">
+                            <option value="">All categories</option>
+                            <option value="plumbing">Plumbing</option>
+                            <option value="electrical">Electrical</option>
+                            <option value="carpentry">Carpentry</option>
+                            <option value="painting">Painting</option>
+                            <option value="cleaning">Cleaning</option>
+                            <option value="landscaping">Landscaping</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Customer Token (Optional)</label>
+                        <textarea id="workersToken" rows="2" placeholder="Paste JWT token for authentication"></textarea>
+                    </div>
+
+                    <div class="button-group">
+                        <button class="btn btn-primary" onclick="findWorkers()">🔎 Search Workers</button>
+                        <button class="btn btn-secondary" onclick="clearWorkerFilters()">Clear</button>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>👥 Available Workers</h3>
+                    <div id="workersList" class="empty-state">
+                        <div class="empty-state-icon">🔎</div>
+                        <div class="empty-state-title">Search for workers</div>
+                        <div class="empty-state-text">Use the filters above to find workers near your location</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats panel -->
+            <div style="width: 300px; background: white; border-left: 1px solid #e5e7eb; padding: 20px; overflow-y: auto;">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">📊 Search Stats</h3>
+                <div class="card">
+                    <div class="card-title">Workers Found</div>
+                    <div class="card-value" id="workersFound">0</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Avg Rating</div>
+                    <div class="card-value" id="avgWorkerRating">0</div>
+                    <div class="card-meta">stars ⭐</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Search Radius</div>
+                    <div class="card-value" id="activeRadius">5 km</div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <h4 style="font-size: 12px; font-weight: 600; margin-bottom: 8px;">Filter Tags</h4>
+                    <div id="filterTags" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+                </div>
+                <div id="workersLog" style="margin-top: 20px; font-family: monospace; font-size: 12px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 12px; max-height: 400px; overflow-y: auto; color: #10b981;">
+                    <div style="color: #6b7280;">API Responses:</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TAB 3: LIVE TRACKING -->
+    <div id="tracking" class="tab-content tab-with-map">
+        <!-- Map -->
+        <div class="map-panel" id="map"></div>
+
+        <!-- Side Panel -->
+        <div class="side-panel">
+            <!-- Arrival Alert -->
+            <div class="form-section">
+                <div class="arrival-banner" id="arrivalBanner">
+                    <div class="arrival-banner-icon">🎉</div>
+                    <div class="arrival-banner-title">Worker Has Arrived!</div>
+                    <div class="arrival-banner-sub" id="arrivalDistance"></div>
+                </div>
+            </div>
+
+            <!-- Live Stats -->
+            <div class="form-section">
+                <h3>📊 Live Statistics</h3>
+                <div class="tracking-stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="distanceValue">--</div>
+                        <div class="stat-label">Distance (m)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="updatesCount">0</div>
+                        <div class="stat-label">Updates</div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Worker Position</div>
+                    <div id="workerCoords" style="font-size: 12px; color: #374151; margin-top: 4px; font-family: monospace;">Waiting...</div>
+                </div>
+                <div class="card">
+                    <div class="card-title">Last Update</div>
+                    <div id="lastUpdate" style="font-size: 12px; color: #374151; margin-top: 4px;">--</div>
+                </div>
+            </div>
+
+            <!-- Customer Watch -->
+            <div class="form-section">
+                <h3>👤 Customer - Watch Job</h3>
+                <div class="form-group">
+                    <label>Job ID</label>
+                    <input id="trackingJobId" value="9779a644-2226-456a-a23f-b450979de2d7" placeholder="Enter job ID">
+                </div>
+                <div class="form-group">
+                    <label>Customer Token</label>
+                    <textarea id="customerToken" rows="2" placeholder="Paste JWT token"></textarea>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="watchJob()">👁️ Watch</button>
+                    <button class="btn btn-secondary" onclick="stopWatching()">Stop</button>
+                </div>
+            </div>
+
+            <!-- Worker Update -->
+            <div class="form-section">
+                <h3>🔧 Worker - Send Location</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Latitude</label>
+                        <input id="latitude" value="-1.2850" placeholder="-1.2850">
+                    </div>
+                    <div class="form-group">
+                        <label>Longitude</label>
+                        <input id="longitude" value="36.8100" placeholder="36.8100">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Worker Token</label>
+                    <textarea id="workerToken" rows="2" placeholder="Paste JWT token"></textarea>
+                </div>
+                <div class="button-group">
+                    <button class="btn btn-success" onclick="sendLocation()">📍 Send Once</button>
+                    <button class="btn btn-success" onclick="simulateMovement()">🚶 Simulate</button>
+                    <button class="btn btn-danger" onclick="stopSimulation()">Stop</button>
+                </div>
+                <div style="font-size: 11px; color: #6b7280; margin-top: 8px;">
+                    💡 Click on map to set worker position
+                </div>
+            </div>
+
+            <!-- Log -->
+            <div id="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ─────────────────────── CONFIG ───────────────────────────
+    const API_BASE = 'http://localhost:5000/api';
+    const JOB_LAT = -1.2922;
+    const JOB_LNG = 36.8220;
+    const ARRIVAL_THRESHOLD = 10;
+    const SERVER = 'http://localhost:5000';
+
+    // State
+    let currentTab = 'booking';
+    let bookingHistory = [];
+    let socket = null;
+    let map = null;
+    let jobMarker = null;
+    let workerMarker = null;
+    let arrivalCircle = null;
+    let routePolyline = null;
+    let routePoints = [];
+    let updatesCount = 0;
+    let simulationInterval = null;
+
+    // ─────────────────────── TAB SWITCHING ───────────────────────────
+    function switchTab(tab) {
+        // Hide all tabs
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+        // Show selected tab
+        document.getElementById(tab).classList.add('active');
+        event.target.classList.add('active');
+        currentTab = tab;
+
+        // Initialize map on first tracking tab load
+        if (tab === 'tracking' && !map) {
+            initializeMap();
+        }
+    }
+
+    // ─────────────────────── WEBSOCKET SETUP ───────────────────────────
+    function initializeWebSocket() {
+        socket = io(SERVER);
+
+        socket.on('connect', () => {
+            updateConnectionStatus(true);
+            log('✅ Connected to server');
+        });
+
+        socket.on('disconnect', () => {
+            updateConnectionStatus(false);
+            log('❌ Disconnected');
+        });
+
+        socket.on('watching', (data) => log('👁️ ' + data.message));
+
+        socket.on('location_update', (data) => {
+            if (currentTab === 'tracking') {
+                updateWorkerOnMap(data.latitude, data.longitude);
+                if (data.distance_to_job !== undefined) {
+                    updateDistance(data.distance_to_job);
+                }
+                document.getElementById('lastUpdate').textContent = new Date(data.timestamp).toLocaleTimeString();
+            }
+        });
+
+        socket.on('worker_arrived', (data) => {
+            if (currentTab === 'tracking') {
+                showArrivalAlert(data.distance);
+                log(`🚨 ${data.message}`);
+            }
+        });
+    }
+
+    function updateConnectionStatus(connected) {
+        const statusEl = document.getElementById('connectionStatus');
+        if (connected) {
+            statusEl.textContent = 'Connected';
+            statusEl.className = 'header-status status-connected';
+        } else {
+            statusEl.textContent = 'Offline';
+            statusEl.className = 'header-status status-disconnected';
+        }
+    }
+
+    // ─────────────────────── LOGGING ───────────────────────────
+    function log(message) {
+        const logEl = document.getElementById('log');
+        const line = document.createElement('div');
+        line.className = 'log-line';
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+        if (logEl.children.length > 50) logEl.removeChild(logEl.children[0]);
+    }
+
+    function logToPanel(panelId, message) {
+        const panel = document.getElementById(panelId);
+        if (panel) {
+            const line = document.createElement('div');
+            line.style.cssText = 'margin-bottom: 2px; word-break: break-all;';
+            line.textContent = `${new Date().toLocaleTimeString()} → ${message}`;
+            panel.appendChild(line);
+            panel.scrollTop = panel.scrollHeight;
+            if (panel.children.length > 30) panel.removeChild(panel.children[0]);
+        }
+    }
+
+    // ─────────────────────── TAB 1: BOOKING ───────────────────────────
+    function bookJob() {
+        const title = document.getElementById('jobTitle').value.trim();
+        const description = document.getElementById('jobDescription').value.trim();
+        const category = document.getElementById('jobCategory').value;
+        const budget = document.getElementById('jobBudget').value;
+        const lat = document.getElementById('bookingLat').value;
+        const lng = document.getElementById('bookingLng').value;
+
+        if (!title || !description || !category || !budget) {
+            showAlert('bookingAlert', 'Please fill all required fields', 'error');
+            return;
+        }
+
+        const payload = {
+            title,
+            description,
+            category_id: category,
+            budget: parseFloat(budget),
+            location: `${parseFloat(lat)}, ${parseFloat(lng)}`,
+            scheduled_date: document.getElementById('jobSchedule').value || null
+        };
+
+        fetch(`${API_BASE}/jobs`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${document.getElementById('bookingToken').value || ''}`
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.id) {
+                bookingHistory.unshift(data);
+                updateBookingStats();
+                showAlert('bookingAlert', `✅ Job created: ${data.id}`, 'success');
+                logToPanel('bookingLog', `Job created: ${data.title} (${data.category})`);
+                clearBookingForm();
+            } else {
+                showAlert('bookingAlert', data.message || 'Failed to create job', 'error');
+                logToPanel('bookingLog', `❌ Error: ${data.message}`);
+            }
+        })
+        .catch(err => {
+            showAlert('bookingAlert', `Error: ${err.message}`, 'error');
+            logToPanel('bookingLog', `❌ ${err.message}`);
+        });
+    }
+
+    function clearBookingForm() {
+        document.getElementById('jobTitle').value = 'Fix kitchen sink repair';
+        document.getElementById('jobDescription').value = 'Pipe is leaking and needs urgent repair';
+        document.getElementById('jobCategory').value = 'plumbing';
+        document.getElementById('jobBudget').value = '2500';
+        document.getElementById('bookingSchedule').value = '';
+    }
+
+    function updateBookingStats() {
+        document.getElementById('totalBookings').textContent = bookingHistory.length;
+        const total = bookingHistory.reduce((sum, job) => sum + job.budget, 0);
+        const avg = bookingHistory.length > 0 ? Math.round(total / bookingHistory.length) : 0;
+        document.getElementById('avgBudget').textContent = `KES ${avg.toLocaleString()}`;
+
+        const historyEl = document.getElementById('bookingHistory');
+        if (bookingHistory.length === 0) {
+            historyEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📭</div><div class="empty-state-title">No bookings yet</div></div>';
+        } else {
+            historyEl.innerHTML = bookingHistory.map(job => `
+                <div class="card" style="margin: 0;">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div>
+                            <div class="card-title">${job.title}</div>
+                            <div style="font-size: 12px; color: #6b7280;">ID: ${job.id.substring(0, 8)}...</div>
+                        </div>
+                        <span class="badge badge-primary">${job.category}</span>
+                    </div>
+                    <div style="margin-top: 8px; display: flex; justify-content: space-between;">
+                        <span style="color: #1a56db; font-weight: 600;">KES ${job.budget}</span>
+                        <span style="font-size: 12px; color: #6b7280;">${job.status || 'pending'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // ─────────────────────── TAB 2: WORKERS ───────────────────────────
+    function findWorkers() {
+        const lat = document.getElementById('searchLat').value;
+        const lng = document.getElementById('searchLng').value;
+        const radius = document.getElementById('searchRadius').value;
+        const minRating = document.getElementById('minRating').value;
+        const category = document.getElementById('workerCategory').value;
+
+        if (!lat || !lng) {
+            showAlert('workersAlert', 'Please enter search location', 'error');
+            return;
+        }
+
+        const params = new URLSearchParams({
+            latitude: lat,
+            longitude: lng,
+            radius_km: radius / 1000,
+            min_rating: minRating,
+            ...(category && { category_id: category })
+        });
+
+        fetch(`${API_BASE}/workers/search?${params}`, {
+            headers: {
+                'Authorization': `Bearer ${document.getElementById('workersToken').value || ''}`
+            }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.workers) {
+                displayWorkers(data.workers);
+                document.getElementById('workersFound').textContent = data.workers.length;
+                const avgRating = data.workers.length > 0 
+                    ? (data.workers.reduce((sum, w) => sum + (w.rating || 0), 0) / data.workers.length).toFixed(1)
+                    : 0;
+                document.getElementById('avgWorkerRating').textContent = avgRating;
+                document.getElementById('activeRadius').textContent = (radius / 1000).toFixed(1) + ' km';
+                logToPanel('workersLog', `Found ${data.workers.length} workers`);
+                showAlert('workersAlert', `✅ Found ${data.workers.length} workers`, 'success');
+            } else {
+                showAlert('workersAlert', data.message || 'No workers found', 'error');
+                logToPanel('workersLog', `❌ ${data.message}`);
+            }
+        })
+        .catch(err => {
+            showAlert('workersAlert', `Error: ${err.message}`, 'error');
+            logToPanel('workersLog', `❌ ${err.message}`);
+        });
+    }
+
+    function displayWorkers(workers) {
+        const listEl = document.getElementById('workersList');
+        if (workers.length === 0) {
+            listEl.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🔍</div><div class="empty-state-title">No workers found</div></div>';
+        } else {
+            listEl.innerHTML = workers.map(worker => `
+                <div class="worker-item">
+                    <div class="worker-info">
+                        <div class="worker-name">${worker.user_id ? 'Worker #' + worker.user_id.substring(0, 8) : 'Worker'}</div>
+                        <div class="worker-meta">
+                            ${worker.location ? `<span class="badge badge-primary">${worker.location}</span>` : ''}
+                            ${worker.rating ? `<span style="margin-left: 6px;">⭐ ${parseFloat(worker.rating).toFixed(1)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="worker-distance">${worker.distance_km ? Math.round(worker.distance_km * 1000) + 'm' : 'N/A'}</div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">away</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    }
+
+    function clearWorkerFilters() {
+        document.getElementById('searchLat').value = '-1.2922';
+        document.getElementById('searchLng').value = '36.8220';
+        document.getElementById('searchRadius').value = '5000';
+        document.getElementById('minRating').value = '3.0';
+        document.getElementById('workerCategory').value = '';
+    }
+
+    // ─────────────────────── TAB 3: TRACKING ───────────────────────────
+    function initializeMap() {
+        map = L.map('map').setView([JOB_LAT, JOB_LNG], 15);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            attribution: '© OpenStreetMap © CARTO',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+
+        jobMarker = L.marker([JOB_LAT, JOB_LNG], {
+            icon: L.divIcon({ html: '<div style="font-size: 28px;">🏠</div>', iconSize: [30, 30], iconAnchor: [15, 30] })
+        }).addTo(map).bindPopup('<b>Job Location</b><br>Fix kitchen sink').openPopup();
+
+        arrivalCircle = L.circle([JOB_LAT, JOB_LNG], {
+            radius: 50,
+            color: '#059669',
+            fillColor: '#d1fae5',
+            fillOpacity: 0.4,
+            weight: 2
+        }).addTo(map);
+
+        routePolyline = L.polyline([], { color: '#1a56db', weight: 3 }).addTo(map);
+
+        map.on('click', (e) => {
+            document.getElementById('latitude').value = e.latlng.lat.toFixed(6);
+            document.getElementById('longitude').value = e.latlng.lng.toFixed(6);
+            log(`📌 Position set: ${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)}`);
+        });
+
+        initializeWebSocket();
+    }
+
+    function updateWorkerOnMap(lat, lng) {
+        updatesCount++;
+        document.getElementById('updatesCount').textContent = updatesCount;
+        document.getElementById('workerCoords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+
+        if (workerMarker) {
+            workerMarker.setLatLng([lat, lng]);
+        } else {
+            workerMarker = L.marker([lat, lng], {
+                icon: L.divIcon({ html: '<div style="font-size: 28px;">🔧</div>', iconSize: [30, 30], iconAnchor: [15, 30] })
+            }).addTo(map).bindPopup('<b>Worker</b>');
+        }
+
+        routePoints.push([lat, lng]);
+        routePolyline.setLatLngs(routePoints);
+
+        if (routePoints.length === 1) {
+            map.fitBounds(L.latLngBounds([jobMarker.getLatLng(), workerMarker.getLatLng()]));
+        }
+    }
+
+    function updateDistance(distance) {
+        const el = document.getElementById('distanceValue');
+        el.textContent = distance < 1 ? '<1' : Math.round(distance);
+        el.style.color = distance <= 10 ? '#059669' : distance <= 50 ? '#f59e0b' : '#dc2626';
+    }
+
+    function showArrivalAlert(distance) {
+        const banner = document.getElementById('arrivalBanner');
+        banner.classList.add('show');
+        document.getElementById('arrivalDistance').textContent = `Worker is ${Math.round(distance)}m from location`;
+        if (arrivalCircle) {
+            arrivalCircle.setStyle({ color: '#059669', fillOpacity: 0.8 });
+            setTimeout(() => arrivalCircle.setStyle({ fillOpacity: 0.4 }), 1000);
+        }
+    }
+
+    function watchJob() {
+        const jobId = document.getElementById('trackingJobId').value.trim();
+        if (!jobId) {
+            log('❌ Please enter a job ID');
+            return;
+        }
+        socket.emit('watch_job', { job_id: jobId });
+        document.getElementById('arrivalBanner').classList.remove('show');
+        routePoints = [];
+        routePolyline.setLatLngs([]);
+        updatesCount = 0;
+        log(`👁️ Watching job: ${jobId}`);
+    }
+
+    function stopWatching() {
+        socket.emit('stop_watching', { job_id: document.getElementById('trackingJobId').value });
+        log('🛑 Stopped watching');
+    }
+
+    function sendLocation() {
+        const jobId = document.getElementById('trackingJobId').value.trim();
+        const lat = parseFloat(document.getElementById('latitude').value);
+        const lng = parseFloat(document.getElementById('longitude').value);
+
+        if (!jobId) {
+            log('❌ Please enter a job ID');
+            return;
+        }
+
+        socket.emit('worker_location_update', {
+            job_id: jobId,
+            worker_id: 'c1ea2d40-c8fd-4840-a9ab-95cdb2de40c4',
+            latitude: lat,
+            longitude: lng
+        });
+
+        const token = document.getElementById('workerToken').value.trim();
+        if (token) {
+            fetch(`${API_BASE}/tracking/${jobId}/update`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ latitude: lat, longitude: lng })
+            }).then(r => r.json()).then(data => {
+                if (data.arrived) showArrivalAlert(data.distance_to_job);
+            });
+        }
+
+        log(`📤 Location sent: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    }
+
+    function simulateMovement() {
+        if (simulationInterval) return;
+        
+        let lat = parseFloat(document.getElementById('latitude').value);
+        let lng = parseFloat(document.getElementById('longitude').value);
+        const targetLat = JOB_LAT;
+        const targetLng = JOB_LNG;
+        const step = 0.0001;
+
+        simulationInterval = setInterval(() => {
+            const distLat = Math.abs(lat - targetLat);
+            const distLng = Math.abs(lng - targetLng);
+
+            if (distLat < step && distLng < step) {
+                lat = targetLat;
+                lng = targetLng;
+                clearInterval(simulationInterval);
+                simulationInterval = null;
+                log('✅ Simulation complete - reached destination');
+                document.getElementById('latitude').value = lat.toFixed(6);
+                document.getElementById('longitude').value = lng.toFixed(6);
+                return;
+            }
+
+            if (distLat > step) lat += lat < targetLat ? step : -step;
+            if (distLng > step) lng += lng < targetLng ? step : -step;
+
+            document.getElementById('latitude').value = lat.toFixed(6);
+            document.getElementById('longitude').value = lng.toFixed(6);
+            sendLocation();
+        }, 800);
+
+        log('🚶 Simulation started...');
+    }
+
+    function stopSimulation() {
+        if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+            log('🛑 Simulation stopped');
+        }
+    }
+
+    // ─────────────────────── UTILITY ───────────────────────────
+    function showAlert(elementId, message, type) {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        
+        el.innerHTML = `
+            <div class="alert alert-${type === 'error' ? 'error' : type === 'success' ? 'success' : 'info'}">
+                <span>${message}</span>
+            </div>
+        `;
+        setTimeout(() => el.innerHTML = '', 5000);
+    }
+
+    // ─────────────────────── INITIALIZATION ───────────────────────────
+    document.addEventListener('DOMContentLoaded', () => {
+        initializeWebSocket();
+        log('🎯 Unified Test UI loaded');
+    });
+</script>
+
+</body>
+</html>

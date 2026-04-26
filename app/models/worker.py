@@ -9,6 +9,8 @@ class Worker(db.Model):
     user_id = db.Column(db.String(36), db.ForeignKey('users.id', ondelete='CASCADE'), nullable=False, unique=True)
     hourly_rate = db.Column(db.Numeric(10, 2), nullable=False)
     location = db.Column(db.String(200), nullable=False, index=True)
+    latitude = db.Column(db.Float)
+    longitude = db.Column(db.Float)
     bio = db.Column(db.Text)
     availability = db.Column(db.Boolean, default=True)
     verification_status = db.Column(db.Enum('pending', 'verified', 'rejected', name='verification_statuses'), default='pending')

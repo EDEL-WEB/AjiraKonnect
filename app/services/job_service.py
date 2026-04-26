@@ -17,17 +17,54 @@ class JobService:
         return job
     
     @staticmethod
-    def accept_job(job_id, worker_id):
+    def accept_job(job_id, worker_id, proposed_rate):
         job = Job.query.get_or_404(job_id)
         if job.status != 'pending':
             raise ValueError('Job is not available')
 
-        job.worker_id = worker_id
-        job.status    = 'accepted'
+        try:
+            proposed_rate = float(proposed_rate)
+            if proposed_rate <= 0:
+                raise ValueError()
+        except (TypeError, ValueError):
+            raise ValueError('Invalid proposed rate')
+
+        job.worker_id     = worker_id
+        job.status        = 'accepted'
+        job.proposed_rate = proposed_rate
+        job.rate_status   = 'pending_approval'
         db.session.commit()
 
         from app.services.notification_service import NotificationService
-        NotificationService.notify_job_accepted(job)
+        NotificationService.notify_rate_proposed(job)
+
+        return job
+
+    @staticmethod
+    def approve_rate(job_id, customer_id, approved):
+        job = Job.query.get_or_404(job_id)
+
+        if job.customer_id != customer_id:
+            raise ValueError('Only the job customer can approve the rate')
+        if job.rate_status != 'pending_approval':
+            raise ValueError('No pending rate to approve')
+
+        if approved:
+            job.rate_status = 'approved'
+            job.budget      = job.proposed_rate
+            db.session.commit()
+            # Now hold funds in escrow
+            from app.services.escrow_service import EscrowService
+            EscrowService.pre_authorize(job_id, customer_id)
+            EscrowService.hold_payment(job_id)
+            from app.services.notification_service import NotificationService
+            NotificationService.notify_rate_approved(job)
+        else:
+            job.rate_status = 'rejected'
+            job.status      = 'cancelled'
+            db.session.commit()
+            from app.services.notification_service import NotificationService
+            NotificationService.notify_rate_rejected(job)
 
         return job
     
@@ -47,12 +84,11 @@ class JobService:
         
         # ── BLOCK COMPLETION WITHOUT ESCROW PAYMENT ──────────────────────────
         if new_status == 'completed':
+            if job.rate_status != 'approved':
+                raise ValueError('Customer must approve the proposed rate before job can be completed.')
             payment = Payment.query.filter_by(job_id=job_id).first()
             if not payment or payment.status != 'held':
-                raise ValueError(
-                    'Payment must be held in escrow before completing this job. '
-                    'Ask the customer to pay through KaziConnect first.'
-                )
+                raise ValueError('Payment must be held in escrow before completing this job.')
         
         job.status = new_status
         

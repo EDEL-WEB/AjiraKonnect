@@ -19,7 +19,7 @@ def create_job():
             title=data['title'],
             description=data['description'],
             location=data['location'],
-            budget=data['budget'],
+            budget=data.get('budget'),
             scheduled_date=data.get('scheduled_date')
         )
         
@@ -35,16 +35,34 @@ def accept_job(job_id):
         user_id = get_jwt_identity()
         from app.models import Worker
         worker = Worker.query.filter_by(user_id=user_id).first_or_404()
+        proposed_rate = data.get('proposed_rate') if (data := request.get_json()) else None
+        if not proposed_rate:
+            return jsonify({'error': 'proposed_rate is required'}), 400
+        job = JobService.accept_job(job_id, worker.id, proposed_rate)
         
-        job = JobService.accept_job(job_id, worker.id)
-        
-        return jsonify({'message': 'Job accepted', 'job_id': job.id}), 200
+        return jsonify({'message': 'Job accepted, rate proposed to customer', 'job_id': job.id, 'proposed_rate': str(job.proposed_rate)}), 200
     except ValueError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': 'Failed to accept job'}), 500
 
-@bp.route('/<job_id>/status', methods=['PATCH'])
+@bp.route('/<job_id>/approve-rate', methods=['POST'])
+@jwt_required()
+@role_required('customer')
+def approve_rate(job_id):
+    try:
+        customer_id = get_jwt_identity()
+        data = request.get_json()
+        approved = data.get('approved', False)
+        job = JobService.approve_rate(job_id, customer_id, approved)
+        action = 'approved' if approved else 'rejected'
+        return jsonify({'message': f'Rate {action}', 'job_id': job.id, 'status': job.status}), 200
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @jwt_required()
 def update_status(job_id):
     try:
